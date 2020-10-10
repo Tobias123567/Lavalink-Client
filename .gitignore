@@ -252,3 +252,4 @@ gradle-app.setting
 
 
 # End of https://www.gitignore.io/api/git,osx,java,sonar,linux,macos,maven,gradle,kotlin,windows,java-web,code-java,sonarqube,intellij+all
+*.json
