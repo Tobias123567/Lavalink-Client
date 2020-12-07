@@ -7,6 +7,8 @@ buildscript {
     repositories {
         maven { url "https://plugins.gradle.org/m2/" }
         mavenCentral()
+        maven { url "https://jitpack.io" }
+        mavenLocal()
     }
     dependencies {
         classpath "org.ajoberstar:grgit:${grgitVersion}"
@@ -25,7 +27,7 @@ apply plugin: 'org.sonarqube'
 
 
 group = 'com.fredboat.lavalink.client'
-version = "${versionFromTag()}"
+version = "1.0"
 description = 'JDA based client for the Lavalink-Server'
 
 
@@ -36,7 +38,8 @@ targetCompatibility = 1.8
 repositories {
     jcenter()
     mavenCentral()
-    maven { url 'https://jitpack.io' }
+    maven { url "https://jitpack.io" }
+    mavenLocal()
 }
 
 
@@ -44,7 +47,7 @@ ext {
     //@formatter:off
     gradleVersion               = '4.9'
 
-    lavaplayerVersion           = '2dd0ba5e38'
+    lavaplayerVersion           = '0001837837'
     javaWebSocketVersion        = '1.5.1'
     slf4jVersion                = '1.7.25'
     jsonOrgVersion              = '20180130'
@@ -59,7 +62,6 @@ ext {
 
     //@formatter:on
 }
-
 
 dependencies {
     compile group: 'com.github.Walkyst', name: 'lavaplayer-fork', version: lavaplayerVersion

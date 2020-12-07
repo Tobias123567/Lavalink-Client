@@ -29,6 +29,7 @@ import com.sedmelluq.discord.lavaplayer.source.http.HttpAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.twitch.TwitchStreamAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.vimeo.VimeoAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.yamusic.YandexMusicAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.youtube.YoutubeAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.tools.io.MessageInput;
 import com.sedmelluq.discord.lavaplayer.tools.io.MessageOutput;
@@ -49,6 +50,7 @@ public class LavalinkUtil {
 
         /* These are only to encode/decode messages */
         PLAYER_MANAGER.registerSourceManager(new YoutubeAudioSourceManager());
+        PLAYER_MANAGER.registerSourceManager(new YandexMusicAudioSourceManager());
         PLAYER_MANAGER.registerSourceManager(new BandcampAudioSourceManager());
         PLAYER_MANAGER.registerSourceManager(SoundCloudAudioSourceManager.createDefault());
         PLAYER_MANAGER.registerSourceManager(new TwitchStreamAudioSourceManager());
