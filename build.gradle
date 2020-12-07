@@ -44,7 +44,7 @@ ext {
     //@formatter:off
     gradleVersion               = '4.9'
 
-    lavaplayerVersion           = 'a91b3d9f6b'
+    lavaplayerVersion           = '2dd0ba5e38'
     javaWebSocketVersion        = '1.5.1'
     slf4jVersion                = '1.7.25'
     jsonOrgVersion              = '20180130'
