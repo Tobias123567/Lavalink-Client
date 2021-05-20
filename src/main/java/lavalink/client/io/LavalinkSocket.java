@@ -31,6 +31,7 @@ import lavalink.client.player.LavalinkPlayer;
 import lavalink.client.player.event.*;
 import org.java_websocket.drafts.Draft;
 import org.java_websocket.handshake.ServerHandshake;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -133,11 +134,19 @@ public class LavalinkSocket extends ReusableWebSocket {
                 Exception ex;
                 if (json.has("exception")) {
                     JSONObject jsonEx = json.getJSONObject("exception");
-                    ex = new FriendlyException(
-                            jsonEx.getString("message"),
-                            FriendlyException.Severity.valueOf(jsonEx.getString("severity")),
-                            new RuntimeException(jsonEx.getString("cause"))
-                    );
+                    try {
+                        ex = new FriendlyException(
+                                jsonEx.getString("message"),
+                                FriendlyException.Severity.valueOf(jsonEx.getString("severity")),
+                                new RuntimeException(jsonEx.getString("cause"))
+                        );
+                    } catch (JSONException e) {
+                        ex = new FriendlyException(
+                                "Empty exception message",
+                                FriendlyException.Severity.valueOf(jsonEx.getString("severity")),
+                                new RuntimeException(jsonEx.getString("cause"))
+                        );
+                    }
                 } else {
                     ex = new RemoteTrackException(json.getString("error"));
                 }
