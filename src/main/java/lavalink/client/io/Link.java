@@ -25,9 +25,12 @@ package lavalink.client.io;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import lavalink.client.player.LavalinkPlayer;
+import org.jetbrains.annotations.Contract;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Objects;
 
 
 /**
@@ -38,17 +41,19 @@ abstract public class Link {
     private static final Logger log = LoggerFactory.getLogger(Link.class);
     private JSONObject lastVoiceServerUpdate = null;
     private String lastSessionId = null;
-    private final Lavalink<?> lavalink;
+    private final Lavalink lavalink;
     protected final long guild;
     private LavalinkPlayer player;
     private volatile String channel = null;
     private volatile LavalinkSocket node = null;
     /* May only be set by setState() */
     private volatile State state = State.NOT_CONNECTED;
+    private volatile boolean holdEvents;
 
-    protected Link(Lavalink<?> lavalink, String guildId) {
+    protected Link(Lavalink lavalink, String guildId) {
         this.lavalink = lavalink;
         this.guild = Long.parseLong(guildId);
+        this.holdEvents = lavalink.willHoldEvents();
     }
 
     public LavalinkPlayer getPlayer() {
@@ -59,7 +64,7 @@ abstract public class Link {
         return player;
     }
 
-    public Lavalink<?> getLavalink() {
+    public Lavalink getLavalink() {
         return lavalink;
     }
 
@@ -78,11 +83,20 @@ abstract public class Link {
 
     public void disconnect() {
         setState(State.DISCONNECTING);
+        lastVoiceServerUpdate = null;
         queueAudioDisconnect();
     }
 
     public void changeNode(LavalinkSocket newNode) {
+        if (Objects.equals(node, newNode)) {
+            log.warn("Attempt to replace node of {} with the same node already configured. Ignoring...");
+            return;
+        }
         node = newNode;
+        onNodeConnected();
+    }
+
+    void onNodeConnected() {
         if (lastVoiceServerUpdate != null) {
             onVoiceServerUpdate(getLastVoiceServerUpdate(), lastSessionId);
             player.onNodeChange();
@@ -150,7 +164,7 @@ abstract public class Link {
      * @return The current node
      */
     @Nullable
-    @SuppressWarnings("WeakerAccess")
+    @Contract("true -> !null")
     public LavalinkSocket getNode(boolean selectIfAbsent) {
         if (selectIfAbsent && node == null) {
             node = lavalink.loadBalancer.determineBestSocket(guild);
@@ -162,7 +176,7 @@ abstract public class Link {
     /**
      * @return The channel we are currently connect to
      */
-    @SuppressWarnings({"WeakerAccess", "unused"})
+    @SuppressWarnings("unused")
     @Nullable
     public String getChannel() {
         if (channel == null || state == State.DESTROYED || state == State.NOT_CONNECTED) return null;
@@ -224,9 +238,8 @@ abstract public class Link {
         out.put("guildId", Long.toString(guild));
         out.put("event", lastVoiceServerUpdate);
 
-        //noinspection ConstantConditions
         getNode(true).send(out.toString());
-        setState(Link.State.CONNECTED);
+        setState(State.CONNECTED);
     }
 
     public JSONObject getLastVoiceServerUpdate() {
@@ -241,8 +254,20 @@ abstract public class Link {
      * @param reason the reason for closure, provided by the closing peer.
      * @param byRemote true if closed by Discord, false if closed by the Lavalink server.
      */
-    @SuppressWarnings("unused")
     public void onVoiceWebSocketClosed(int code, String reason, boolean byRemote) {}
+
+    /**
+     * Emit events that were held back.
+     * @see Lavalink#setHoldEvents(boolean)
+     */
+    public void releaseHeldEvents() {
+        holdEvents = false;
+        if(player != null) player.releaseEvent();
+    }
+
+    public boolean willHoldEvents() {
+        return holdEvents;
+    }
 
     public enum State {
         /**

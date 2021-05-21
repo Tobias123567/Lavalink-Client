@@ -32,6 +32,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.Map;
 
+@SuppressWarnings({"WeakerAccess", "unused"})
 public abstract class ReusableWebSocket {
 
     private static final Logger log = LoggerFactory.getLogger(ReusableWebSocket.class);
@@ -45,7 +46,7 @@ public abstract class ReusableWebSocket {
     private boolean isUsed = false;
     private int heartbeatTimeout = 60;
 
-    public ReusableWebSocket(URI serverUri, Draft draft, Map<String, String> headers, int connectTimeout) {
+    ReusableWebSocket(URI serverUri, Draft draft, Map<String, String> headers, int connectTimeout) {
         this.serverUri = serverUri;
         this.draft = draft;
         this.headers = headers;

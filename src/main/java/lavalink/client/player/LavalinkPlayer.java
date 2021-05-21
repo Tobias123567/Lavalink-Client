@@ -30,13 +30,19 @@ import lavalink.client.player.event.IPlayerEventListener;
 import lavalink.client.player.event.PlayerEvent;
 import lavalink.client.player.event.PlayerPauseEvent;
 import lavalink.client.player.event.PlayerResumeEvent;
+import lavalink.client.player.event.TrackStartEvent;
 import org.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class LavalinkPlayer implements IPlayer {
+
+    private static final Logger log = LoggerFactory.getLogger(LavalinkPlayer.class);
 
     private AudioTrack track = null;
     private boolean paused = false;
@@ -46,6 +52,8 @@ public class LavalinkPlayer implements IPlayer {
 
     private final Link link;
     private List<IPlayerEventListener> listeners = new CopyOnWriteArrayList<>();
+    private volatile ConcurrentLinkedQueue<PlayerEvent> heldEvents = null;
+    private volatile boolean hasReleasedEvents = false;
 
     /**
      * Constructor only for internal use
@@ -55,6 +63,7 @@ public class LavalinkPlayer implements IPlayer {
     public LavalinkPlayer(Link link) {
         this.link = link;
         addListener(new LavalinkInternalPlayerEventHandler());
+        if (link.willHoldEvents()) heldEvents = new ConcurrentLinkedQueue<>();
     }
 
     /**
@@ -78,6 +87,11 @@ public class LavalinkPlayer implements IPlayer {
 
     @Override
     public void playTrack(AudioTrack track) {
+        playTrack(track, false);
+    }
+
+    @SuppressWarnings("WeakerAccess")
+    public void playTrack(AudioTrack track, boolean noReplace) {
         try {
             position = track.getPosition();
             TrackData trackData = track.getUserData(TrackData.class);
@@ -87,13 +101,13 @@ public class LavalinkPlayer implements IPlayer {
             json.put("guildId", link.getGuildId());
             json.put("track", LavalinkUtil.toMessage(track));
             json.put("startTime", position);
+            json.put("noReplace", noReplace);
             if (trackData != null) {
                 json.put("startTime", trackData.startPos);
                 json.put("endTime", trackData.endPos);
             }
             json.put("pause", paused);
             json.put("volume", volume);
-            //noinspection ConstantConditions
             link.getNode(true).send(json.toString());
 
             updateTime = System.currentTimeMillis();
@@ -163,7 +177,6 @@ public class LavalinkPlayer implements IPlayer {
         json.put("op", "seek");
         json.put("guildId", link.getGuildId());
         json.put("position", position);
-        //noinspection ConstantConditions
         link.getNode(true).send(json.toString());
     }
 
@@ -203,14 +216,51 @@ public class LavalinkPlayer implements IPlayer {
     }
 
     public void emitEvent(PlayerEvent event) {
-        listeners.forEach(listener -> listener.onEvent(event));
+        if (heldEvents == null) {
+            emitEvent0(event);
+        } else {
+            heldEvents.add(event);
+            if (heldEvents.size() % 10 == 0) {
+                log.warn("{} has held back {} events! Did you forget to release them?", this, heldEvents.size());
+            }
+        }
+
+    }
+
+    private void emitEvent0(PlayerEvent event) {
+        for (IPlayerEventListener listener : listeners) {
+            try {
+                listener.onEvent(event);
+            } catch (Exception e) {
+                log.error("Exception while emitting event", e);
+            }
+        }
+    }
+
+    /**
+     * For internal use.
+     * @see Link#releaseHeldEvents()
+     */
+    public void releaseEvent() {
+        if (hasReleasedEvents) {
+            log.warn("Attempt to release events more than once");
+            return;
+        }
+        if (heldEvents == null) {
+            log.warn("Attempt to release events for player that never held them");
+            return;
+        }
+        hasReleasedEvents = true;
+        ConcurrentLinkedQueue<PlayerEvent> queue = heldEvents;
+        heldEvents = null;
+        queue.forEach(this::emitEvent0);
     }
 
     void clearTrack() {
         track = null;
     }
 
-    @SuppressWarnings("WeakerAccess")
+    @SuppressWarnings("unused")
     public Link getLink() {
         return link;
     }

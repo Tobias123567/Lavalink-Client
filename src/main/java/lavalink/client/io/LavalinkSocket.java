@@ -59,20 +59,56 @@ public class LavalinkSocket extends ReusableWebSocket {
     @NonNull
     private final URI remoteUri;
     private boolean available = false;
+    @Nullable
+    private String resumeKey;
+    private int resumeTimeout = 60;
 
-    LavalinkSocket(@NonNull String name, @NonNull Lavalink lavalink, @NonNull URI serverUri, Draft protocolDraft, Map<String, String> headers) {
+    LavalinkSocket(@NonNull String name, @NonNull Lavalink lavalink, @NonNull URI serverUri,
+                   @NonNull Draft protocolDraft, @NonNull Map<String, String> headers, @Nullable String resumeKey) {
         super(serverUri, protocolDraft, headers, TIMEOUT_MS);
         this.name = name;
         this.lavalink = lavalink;
         this.remoteUri = serverUri;
+        this.resumeKey = resumeKey;
+        if (resumeKey != null) headers.put("Resume-Key", resumeKey);
     }
 
     @Override
     public void onOpen(ServerHandshake handshakeData) {
-        log.info("Received handshake from server");
         available = true;
         lavalink.loadBalancer.onNodeConnect(this);
         reconnectsAttempted = 0;
+        configureResuming();
+
+        boolean resumed = Objects.equals(handshakeData.getFieldValue("Session-Resumed"), "true");
+        if (resumed) {
+            log.info("Resumed {} with resume key {}", remoteUri, resumeKey);
+        } else {
+            log.info("Connected to {}", remoteUri);
+        }
+
+        lavalink.onNodeConnect(new NodeConnectedEvent(this, resumed));
+    }
+
+    /**
+     * @param resumeKey the key to later use for resuming, or null to disable resuming
+     * @param resumeTimeout The timeout before Lavalink should shutdown pauses sessions. In seconds.
+     */
+    @SuppressWarnings("unused")
+    public void setResuming(String resumeKey, int resumeTimeout) {
+        this.resumeKey = resumeKey;
+        this.resumeTimeout = resumeTimeout;
+    }
+
+    private void configureResuming() {
+        JSONObject json = new JSONObject()
+                .put("op", "configureResuming")
+                .put("timeout", resumeTimeout);
+
+        if (resumeKey != null) json.put("key", resumeKey);
+        else json.put("key", JSONObject.NULL);
+
+        send(json.toString());
     }
 
     @Override
@@ -115,10 +151,17 @@ public class LavalinkSocket extends ReusableWebSocket {
      */
     private void handleEvent(JSONObject json) throws IOException {
         Link link = lavalink.getLink(json.getString("guildId"));
+        String type = json.getString("type");
+        if (link.getNode() != null && !link.getNode().equals(this)) {
+            log.warn("Received {} for {} which is not associated with this node: {}", type, link, this);
+        } else if (link.getNode() == null) {
+            log.info("Changing {}'s node to {} because we received {}", link, this, type);
+            link.changeNode(this);
+        }
         LavalinkPlayer player = lavalink.getLink(json.getString("guildId")).getPlayer();
         PlayerEvent event = null;
 
-        switch (json.getString("type")) {
+        switch (type) {
             case "TrackStartEvent":
                 event = new TrackStartEvent(player,
                         LavalinkUtil.toAudioTrack(json.getString("track"))
@@ -213,7 +256,7 @@ public class LavalinkSocket extends ReusableWebSocket {
     }
 
     @NonNull
-    @SuppressWarnings("unused")
+    @SuppressWarnings("WeakerAccess")
     public URI getRemoteUri() {
         return remoteUri;
     }
@@ -249,4 +292,15 @@ public class LavalinkSocket extends ReusableWebSocket {
                 ",remoteUri=" + remoteUri +
                 '}';
     }
+
+    public static class NodeConnectedEvent {
+        public final LavalinkSocket node;
+        public final boolean resumed;
+
+        public NodeConnectedEvent(LavalinkSocket node, boolean resumed) {
+            this.node = node;
+            this.resumed = resumed;
+        }
+    }
+
 }
