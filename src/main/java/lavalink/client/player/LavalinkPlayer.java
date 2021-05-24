@@ -156,7 +156,7 @@ public class LavalinkPlayer implements IPlayer {
 
     @Override
     public long getTrackPosition() {
-        if (getPlayingTrack() == null) throw new IllegalStateException("Not currently playing anything");
+        if (getPlayingTrack() == null) return 0L;
 
         if (!paused) {
             // Account for the time since our last update
