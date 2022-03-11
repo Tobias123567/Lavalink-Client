@@ -52,7 +52,7 @@ public class JdaLink extends Link {
         if (checkChannel && channel.equals(voiceState.getChannel()))
             return;
 
-        if (voiceState.inVoiceChannel()) {
+        if (voiceState.inAudioChannel()) {
             final int userLimit = channel.getUserLimit(); // userLimit is 0 if no limit is set!
             if (!self.isOwner() && !self.hasPermission(Permission.ADMINISTRATOR)) {
                 if (userLimit > 0                                                      // If there is a userlimit
@@ -96,6 +96,16 @@ public class JdaLink extends Link {
             getJda().getDirectAudioController().connect(vc);
         } else {
             log.warn("Attempted to connect, but voice channel {} was not found", channelId);
+        }
+    }
+
+    @Override
+    protected void queueAudioReconnect(long channelId) {
+        VoiceChannel vc = getJda().getVoiceChannelById(channelId);
+        if (vc != null) {
+            getJda().getDirectAudioController().reconnect(vc);
+        } else {
+            log.warn("Attempted to reconnect, but voice channel {} was not found", channelId);
         }
     }
 
